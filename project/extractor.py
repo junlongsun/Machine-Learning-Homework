@@ -1,5 +1,7 @@
 from csv import DictReader, DictWriter
 import numpy as np
+import re
+from nflEvaluation import sFunction
 
 def classifyType(Type, typelist):
     for i in range(len(typelist)):
@@ -9,9 +11,12 @@ def classifyType(Type, typelist):
             break
     return value
 
+def seperateVector(datalist):
+    temp = str(datalist)
+    temp1 = re.findall(r'\b\d+\b', temp)
+    return temp1[0], temp1[1]
+
 def numericalYardLineDirection(data):
-    #print data
-    #z = 1
     if data == "OWN":
         z = 1
     elif data == "OPP":
@@ -20,11 +25,17 @@ def numericalYardLineDirection(data):
         z = 3
     return z
 
-def isHomeTeambeOffenseTeam(HomeTeam,OffenseTeam):
+def isHomeTeambeOffenseTeam(HomeTeam, OffenseTeam, CurrentScore):
+    HomeScore, VisitScore = seperateVector(CurrentScore)
     z = 0
     if  HomeTeam == OffenseTeam:
         z = 1
-    return z
+        OffenseScore = HomeScore
+        DefScore = VisitScore
+    else:
+        OffenseScore = VisitScore
+        DefScore = HomeScore
+    return z, OffenseScore, DefScore
 
 def yards(data):
      try:
@@ -33,8 +44,6 @@ def yards(data):
      except ValueError:
          z = 0
      return z
-
-
 
 class Extractor():
     def buildPlayTypeList(self, data):
@@ -47,6 +56,13 @@ class Extractor():
         for play in data:
             if play["Formation"] not in self.formationlist:
                 self.formationlist.append(play["Formation"])
+    def buildTeamList(self, data):
+        self.teamlist = []
+        for play in data:
+            if play["OffenseTeam"] not in self.formationlist:
+                self.teamlist.append(play["OffenseTeam"])
+            if play["DefenseTeam"] not in self.formationlist:
+                self.teamlist.append(play["DefenseTeam"])
     #def extract(self, data):
     #    return data
 
@@ -68,31 +84,11 @@ class PbpExtractor(Extractor):
             targetFinal = target[0:(i-1)]
         return featureFinal, targetFinal
 
-def resultMapping(PlayResult):
-    return {
-        '1': -4,
-        '2': -2,
-        '3': -2,
-        '4': -2,
-        '5': -1,
-        '6': -1,
-        '7': -1,
-        '8': 2,
-        '9': 3,
-        '10': 4,
-    }.get(PlayResult, 0)
-
 class NewPbpExtractor(Extractor):
-    def seperateY(self, datalist):
-        PlayType = float(datalist["Y"][1])
-        PlayResult = float(datalist["Y"][4])
-        temp = datalist["Y"][5]
-        if temp == "0":
-            PlayResult = 10
-        return PlayType, PlayResult
     def extract(self, data):
-        self.buildFormationList(data)
-        featureNum = 10
+        self.buildPlayTypeList(data)
+        self.buildTeamList(data)
+        featureNum = 16
         pType = np.zeros(len(data))
         pScore = np.zeros(len(data))
         pResult = np.zeros(len(data))
@@ -100,54 +96,34 @@ class NewPbpExtractor(Extractor):
 
         i = 0
         for play in data:
-            PlayType, PlayResult = self.seperateY(play)
+            PlayType, PlayResult = seperateVector(play["Y"])
             Formation = classifyType(play["Formation"], self.formationlist)
+            OffenseTeam = classifyType(play["OffenseTeam"], self.teamlist)
+            DefenseTeam = classifyType(play["DefenseTeam"], self.teamlist)
             Time  = 15* 60 - (int(play["Minute"]) * 60  + int(play["Second"]) )
             YardLineDirection = numericalYardLineDirection(play["YardLineDirection"])
-            HomeTeambeOffenseTeam = isHomeTeambeOffenseTeam(play["HomeTeam"], play["OffenseTeam"])
+            HomeTeambeOffenseTeam, OffenseScore, DefScore = isHomeTeambeOffenseTeam(play["HomeTeam"], play["OffenseTeam"], play["CurrentScore"])
             Yards = yards(play["Yards"])
-            feature[i,:] = np.matrix([int(play["Quarter"]), Time, int(play["Down"]), int(play["ToGo"]), int(play["YardLine"]), int(play["SeriesFirstDown"]), Yards, YardLineDirection, HomeTeambeOffenseTeam, Formation ])
-            #feature[i,:] = np.matrix([int(play["Quarter"]), Time, int(play["Down"]), int(play["ToGo"]), int(play["YardLine"]), int(play["SeriesFirstDown"]) ])
-
-            PlayScore = resultMapping(PlayResult)
+            feature[i,:] = np.matrix([int(play["Quarter"]), Time, int(play["Down"]), int(play["ToGo"]), int(play["YardLine"]), int(play["SeriesFirstDown"]), Yards, YardLineDirection, HomeTeambeOffenseTeam, Formation, OffenseScore, DefScore, OffenseTeam, DefenseTeam, int(play["HomeTeamFinalScore"]), int(play["VisitingTeamFinalScore"])  ])
 
             pType[i] = PlayType
-            pScore[i] = PlayScore
             pResult[i] = PlayResult
             i += 1
 
         featureFinal = feature[0:(i-1),:]
         pFinal = pType[0:(i-1)]
-        sFinal = pScore[0:(i-1)]
         rFinal = pResult[0:(i-1)]
-        return featureFinal, pFinal, sFinal, rFinal
+        return featureFinal, pFinal, rFinal
+
     def extract4Classifier(self, data):
-        feature, pFinal, sFinal, rFinal = self.extract(data)
-        #targetFinal = np.zeros(len(pFinal))
-        #print np.size(feature)
-        #print len(pFinal)
+        feature, pFinal, rFinal = self.extract(data)
         featureClass= np.zeros((np.size(feature,0), np.size(feature,1)))
         itemClass = np.zeros(len(pFinal))
         i = 0
-        #print pFinal[0]
-        #print (pFinal[0] - 0 ) < .0001
         for j in range(len(feature)):
-            if (pFinal[j] - 0 ) > .0001 and (rFinal[j] - 0 ) > .0001:
+            if abs(pFinal[j] - 0 ) > .0001 and abs(rFinal[j] - 0 ) > .0001 and abs(feature[j,2]-0) > .0001 and abs(feature[j,2]-4) > .0001:
                 featureClass[i,:] = feature[j,:]
-                itemClass[i] = rFinal[j] + (pFinal[j] - 1)*10
-                #print rFinal[j]
-                #print pFinal[j]
+                itemClass[i] = int(rFinal[j] + (pFinal[j] - 1)*10)
                 i += 1
 
-        #print itemClass[500:1000]
         return featureClass[0:(i-1),:], itemClass[0:(i-1)]
-
-
-#data = list(DictReader(open("pbp-2014.csv", 'r')))
-#pbp2014 = NewPbpExtractor()
-#pbp2014.extract4Classifier(data)
-
-#pbp2014 = PbpExtractor()
-#pbp2014.buildPlayTypeList(data)
-#print len(data)
-#print classifyPlayType(data[0]["PlayType"], pbp2014.typelist) != 0
