@@ -7,7 +7,7 @@ from nflEvaluation import classifierEvaluation
 from nflClassifier import *
 from sklearn.cross_validation import train_test_split
 
-mc = 2
+
 #--------------------------------------------------#
 #training
 #data2: combine 2014, first 80% for train, 20% for test
@@ -17,8 +17,6 @@ data2015 = list(DictReader(open("pbp-2015.csv", 'r')))
 dataList = [data2013, data2014, data2015]
 dataName = ["2013","2014","2015"]
 
-o = DictWriter(open("rfClassifier-mc.csv", 'w'), ["dataName", "classifier", "percent", "score", "OmniScore", "Type1-A/A/Good","Type2-A/B/Bad",  "Type3-A/B/Good", "Type4-A/A/Bad"])
-o.writeheader()
 
 #train data 2015
 data13and14 = data2013+data2014
@@ -35,37 +33,22 @@ feature, target = pbp2014.extract4Classifier(data2015)
 X_test = feature
 y_test = target
 
+o = DictWriter(open("Bayes.csv", 'w'), ["dataName", "classifier", "percent", "score", "OmniScore", "Type1-A/A/Good","Type2-A/B/Bad",  "Type3-A/B/Good", "Type4-A/A/Bad"])
+o.writeheader()
+
+
 class2014 = classifierEvaluation()
 
 Bscore, Bnum, BtypeNum, BomniScore = class2014.Score(y_test, y_test)
-baseline = {'dataName': 2015 ,'classifier': 'baseline', 'percent': Bscore/float(BomniScore),'score': Bscore,'OmniScore': BomniScore, 'Type1-A/A/Good': BtypeNum[0], 'Type2-A/B/Bad': BtypeNum[1], 'Type3-A/B/Good': BtypeNum[2], 'Type4-A/A/Bad': BtypeNum[3]}
+baseline = {'dataName': '2015' ,'classifier': 'baseline', 'percent': Bscore/float(BomniScore),'score': Bscore,'OmniScore': BomniScore, 'Type1-A/A/Good': BtypeNum[0], 'Type2-A/B/Bad': BtypeNum[1], 'Type3-A/B/Good': BtypeNum[2], 'Type4-A/A/Bad': BtypeNum[3]}
 o.writerow(baseline)
 
-#--------------------------------------------------#
+    #--------------------------------------------------#
 clf = []
-max_depth = 9
-splitter = ["best", "random"]
-#max_features = np.linspace(7, 16, num = 16-7+1)
-#criterion = ["gini", "entropy"]
-algorithm = ["SAMME", "SAMME.R"]
-method = ["dt", "svm"]
 
-algorithmForkn = ["ball_tree", "brute", "auto"]
-n_neighbors  = np.linspace(3, 8, num = 8-3+1)
-metric = ["minkowski", "euclidean", "manhattan", "chebyshev"]
+clf.append( BayesClassifier() )
+clf.append( BernoulliNB() )
 
-#C = [.0001, .001, .01, .1, 1, 10, 100, 1000]
-C = [10]
-#kernel = ["linear", "poly", "rbf", "sigmoid", "precomputed"]
-kernel = ["linear", "poly", "rbf", "sigmoid", "precomputed"]
-max_features = [11]
-criterion = ["entropy"]
-
-#clf.append(rfClassifier())
-#for a, b, c in product(max_depth, criterion, max_features):
-#clf.append( rfClassifier(max_depth=9, criterion="entropy", max_features=10) )
-clf.append(BayesClassifier())
-clf.append(BernoulliNB())
 
 for i in range(len(clf)):
     clf[i].classify(X_train, y_train)

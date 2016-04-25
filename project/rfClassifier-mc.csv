@@ -1,4 +1,4 @@
 dataName,classifier,percent,score,OmniScore,Type1-A/A/Good,Type2-A/B/Bad,Type3-A/B/Good,Type4-A/A/Bad
 2015,baseline,0.07929081507017977,3220.0,40610,8501.0,0.0,0.0,11317.0
-2015,"RandomForestClassifier, max_depth None, criterion gini, max_features auto",0.5390297956168432,21890.0,40610,6226.0,9272.0,2275.0,2045.0
-2015,"RandomForestClassifier, max_depth 9, criterion entropy, max_features 10",0.5809899039645408,23594.0,40610,6471.0,9408.0,2030.0,1909.0
+2015,GaussianNB,0.38468357547402116,15622.0,40610,5648.0,8353.0,2853.0,2964.0
+2015,BernoulliNB,0.27653287367643437,11230.0,40610,5403.0,7473.0,3098.0,3844.0
